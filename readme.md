@@ -1,3 +1,7 @@
+![License](https://img.shields.io/github/license/bchilton9/chilsoft.github.io)
+![Last Commit](https://img.shields.io/github/last-commit/bchilton9/chilsoft.gethub.io)
+![Shell Script](https://img.shields.io/badge/made%20with-bash-1f425f.svg)
+
 # 💻 ChilSoft
 
 **ChilSoft** is a clean, mobile-friendly project showcase that highlights all of my public GitHub repositories — along with select custom-built tools — in one centralized, tech-inspired interface.
