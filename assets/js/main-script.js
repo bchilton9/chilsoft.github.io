@@ -68,7 +68,7 @@ showQuote(); // show first quote right away
   }
 
   // REPO + PROJECT LOADING
-  const activeList = document.getElementById("active-list");
+  /* const activeList = document.getElementById("active-list");
   const archivedList = document.getElementById("archived-list");
 
   function loadCustomProjects() {
@@ -89,7 +89,7 @@ showQuote(); // show first quote right away
         });
       });
   }
-
+*/  
   async function fetchRepos() {
     const response = await fetch(`https://api.github.com/users/${username}/repos?per_page=100`);
     const repos = await response.json();
