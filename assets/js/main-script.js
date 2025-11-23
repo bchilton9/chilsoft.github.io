@@ -71,24 +71,29 @@ showQuote(); // show first quote right away
   const activeList = document.getElementById("active-list");
   const archivedList = document.getElementById("archived-list");
 
-  function loadCustomProjects() {
-    return fetch('assets/json/projects.json')
-      .then(res => res.json())
-      .then(projects => {
-        projects.forEach(project => {
-          const card = document.createElement('div');
-          card.className = 'repo-card';
-          card.innerHTML = `
-            <h3><a href="${project.link}" target="_blank">${project.name}</a></h3>
-            <p>${project.description}</p>
-            <div class="repo-meta">
-              <span class="badge">Custom Project (Non-GitHub)</span>
-            </div>
-          `;
-          (project.archived ? archivedList : activeList).appendChild(card);
-        });
-      });
+  async function loadCustomProjects() {
+  try {
+    const res = await fetch('assets/json/projects.json');
+    if (!res.ok) return; // if file not found, just skip
+    const projects = await res.json();
+    if (!Array.isArray(projects) || projects.length === 0) return; // skip if empty
+
+    projects.forEach(project => {
+      const card = document.createElement('div');
+      card.className = 'repo-card';
+      card.innerHTML = `
+        <h3><a href="${project.link}" target="_blank">${project.name}</a></h3>
+        <p>${project.description}</p>
+        <div class="repo-meta">
+          <span class="badge">Custom Project (Non-GitHub)</span>
+        </div>
+      `;
+      (project.archived ? archivedList : activeList).appendChild(card);
+    });
+  } catch (err) {
+    console.warn("No custom projects loaded", err);
   }
+}
 
   async function fetchRepos() {
     const response = await fetch(`https://api.github.com/users/${username}/repos?per_page=100`);
@@ -139,8 +144,8 @@ showQuote(); // show first quote right away
   document.getElementById("year").textContent = new Date().getFullYear();
 
   // START EVERYTHING
-  //loadCustomProjects().then(() => {
+  loadCustomProjects().then(() => {
     fetchRepos();
     startMatrix();
-  //});
+  });
 });
