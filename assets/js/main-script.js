@@ -139,8 +139,8 @@ showQuote(); // show first quote right away
   document.getElementById("year").textContent = new Date().getFullYear();
 
   // START EVERYTHING
-  loadCustomProjects().then(() => {
+  //loadCustomProjects().then(() => {
     fetchRepos();
     startMatrix();
-  });
+  //});
 });
