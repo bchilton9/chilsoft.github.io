@@ -1,4 +1,0 @@
-Contact: mailto:security@chilsoft.com
-Expires: 2027-07-02T09:27:00Z
-Canonical: https://chilsoft.com/.well-known/security.txt
-Preferred-Languages: en
