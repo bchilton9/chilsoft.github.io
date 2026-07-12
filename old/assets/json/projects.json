@@ -1,0 +1,14 @@
+[
+  {
+    "name": "TrainTo.Zone",
+    "link": "https://trainto.zone",
+    "description": "A fantasy-themed guild and community hub where players can create guild pages, manage rosters, share scrolls and guides, post gallery images, use forums, send messages, and organize game communities under custom subdomains.",
+    "archived": false
+  },
+  {
+    "name": "The Gadget Guide",
+    "link": "https://thegadget.guide",
+    "description": "The Gadget Guide is a clean, mobile-friendly site offering step-by-step tech tutorials, tips, and plugin guides for devices like the Steam Deck, Raspberry Pi, iPhone, and more.",
+    "archived": false
+  }
+]

@@ -1,0 +1,10 @@
+/config.php
+/cache/*.json
+/cache/*.tmp
+
+
+/holidayclock/
+/dockertoolkit/
+/hubitatdarktheme/
+/selfhostedmobile/
+/themeparkswitcher/
