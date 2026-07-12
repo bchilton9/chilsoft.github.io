@@ -21,46 +21,6 @@ function h(string $value): string
 }
 
 /**
- * Render trusted repository description HTML with a limited tag set.
- */
-function renderDescription(string $description): string
-{
-    $allowedTags = [
-        'a',
-        'b',
-        'br',
-        'code',
-        'em',
-        'i',
-        'p',
-        'pre',
-        'span',
-        'strong',
-        'ul',
-        'ol',
-        'li',
-    ];
-
-    $allowed = '';
-
-    foreach ($allowedTags as $tag) {
-        $allowed .= '<' . $tag . '>';
-    }
-
-    $description = strip_tags($description, $allowed);
-
-    /*
-     * Add line breaks only when the description does not already
-     * contain block-level HTML.
-     */
-    if (!preg_match('/<(p|ul|ol|pre|br)\b/i', $description)) {
-        $description = nl2br($description);
-    }
-
-    return $description;
-}
-
-/**
  * Make a GitHub API request and decode the JSON response.
  */
 function githubRequest(string $url, string $token = ''): array
@@ -557,7 +517,7 @@ $showArchived = (bool) (
             </h3>
 
             <p>
-              <?= renderDescription($project['description']) ?>
+              <?= nl2br(h($project['description'])) ?>
             </p>
 
             <div class="repo-meta">
@@ -617,7 +577,7 @@ $showArchived = (bool) (
               title="Here be dragons 🐉."
             >
               Home of forgotten features, deprecated dreams,
-              and the “I’ll fix it later.”
+              and the "I’ll fix it later."
             </p>
           </div>
         </div>
@@ -637,7 +597,7 @@ $showArchived = (bool) (
               </h3>
 
               <p>
-                <?= renderDescription($project['description']) ?>
+                <?= nl2br(h($project['description'])) ?>
               </p>
 
               <div class="repo-meta">
