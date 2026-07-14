@@ -54,9 +54,72 @@ function githubRequest(string $url, string $token = ''): array
 }
 
 
+function preserveSafeDescriptionHtml(string $text, array &$placeholders): string
+{
+    return preg_replace_callback(
+        '/<\/?(?:a|br|strong|em|b|i|code|div|span)\b[^>]*>/i',
+        static function (array $match) use (&$placeholders): string {
+            $raw = $match[0];
+            if (!preg_match('/^<\s*(\/?)\s*([a-z0-9]+)(.*?)>$/is', $raw, $parts)) {
+                return '';
+            }
+
+            $closing = $parts[1] === '/';
+            $tag = strtolower($parts[2]);
+            $attributes = $parts[3] ?? '';
+            $allowed = ['a', 'br', 'strong', 'em', 'b', 'i', 'code', 'div', 'span'];
+            if (!in_array($tag, $allowed, true)) {
+                return '';
+            }
+
+            if ($closing) {
+                $safe = $tag === 'br' ? '' : '</' . $tag . '>';
+            } elseif ($tag === 'br') {
+                $safe = '<br>';
+            } elseif (in_array($tag, ['strong', 'em', 'b', 'i', 'code'], true)) {
+                $safe = '<' . $tag . '>';
+            } elseif ($tag === 'a') {
+                $href = '';
+                if (preg_match('/\bhref\s*=\s*(["\'])(.*?)\1/is', $attributes, $hrefMatch)) {
+                    $candidate = html_entity_decode(trim($hrefMatch[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    if (preg_match('#^https?://#i', $candidate)) {
+                        $href = $candidate;
+                    }
+                }
+                $safe = $href === ''
+                    ? '<span>'
+                    : '<a href="' . h($href) . '" target="_blank" rel="noopener noreferrer">';
+            } else {
+                $class = '';
+                $title = '';
+                if (preg_match('/\bclass\s*=\s*(["\'])(.*?)\1/is', $attributes, $classMatch)) {
+                    $candidate = trim($classMatch[2]);
+                    if (preg_match('/^[a-z0-9 _-]+$/i', $candidate)) {
+                        $class = $candidate;
+                    }
+                }
+                if (preg_match('/\btitle\s*=\s*(["\'])(.*?)\1/is', $attributes, $titleMatch)) {
+                    $title = html_entity_decode(trim($titleMatch[2]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                }
+                $safe = '<' . $tag
+                    . ($class !== '' ? ' class="' . h($class) . '"' : '')
+                    . ($title !== '' ? ' title="' . h($title) . '"' : '')
+                    . '>';
+            }
+
+            $token = '@@CHILSOFT_HTML_' . count($placeholders) . '@@';
+            $placeholders[$token] = $safe;
+            return $token;
+        },
+        $text
+    ) ?? $text;
+}
+
 function markdownInline(string $text): string
 {
-    $escaped = h($text);
+    $placeholders = [];
+    $protected = preserveSafeDescriptionHtml($text, $placeholders);
+    $escaped = h($protected);
     $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped) ?? $escaped;
     $escaped = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $escaped) ?? $escaped;
     $escaped = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $escaped) ?? $escaped;
@@ -65,7 +128,8 @@ function markdownInline(string $text): string
         static fn(array $m): string => '<a href="' . h($m[2]) . '" target="_blank" rel="noopener noreferrer">' . $m[1] . '</a>',
         $escaped
     ) ?? $escaped;
-    return $escaped;
+
+    return strtr($escaped, $placeholders);
 }
 
 function markdownToHtml(string $markdown): string
