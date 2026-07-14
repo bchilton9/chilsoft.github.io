@@ -53,6 +53,121 @@ function githubRequest(string $url, string $token = ''): array
     return is_array($decoded) ? $decoded : [];
 }
 
+
+function markdownInline(string $text): string
+{
+    $escaped = h($text);
+    $escaped = preg_replace('/`([^`]+)`/', '<code>$1</code>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/\*\*([^*]+)\*\*/', '<strong>$1</strong>', $escaped) ?? $escaped;
+    $escaped = preg_replace('/\*([^*]+)\*/', '<em>$1</em>', $escaped) ?? $escaped;
+    $escaped = preg_replace_callback(
+        '/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/',
+        static fn(array $m): string => '<a href="' . h($m[2]) . '" target="_blank" rel="noopener noreferrer">' . $m[1] . '</a>',
+        $escaped
+    ) ?? $escaped;
+    return $escaped;
+}
+
+function markdownToHtml(string $markdown): string
+{
+    $lines = preg_split('/\R/', trim($markdown)) ?: [];
+    $html = [];
+    $paragraph = [];
+    $inList = false;
+
+    $flushParagraph = static function () use (&$paragraph, &$html): void {
+        if ($paragraph !== []) {
+            $html[] = '<p>' . markdownInline(implode(' ', $paragraph)) . '</p>';
+            $paragraph = [];
+        }
+    };
+
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        if ($trimmed === '') {
+            $flushParagraph();
+            if ($inList) {
+                $html[] = '</ul>';
+                $inList = false;
+            }
+            continue;
+        }
+
+        if (preg_match('/^(#{1,3})\s+(.+)$/', $trimmed, $m)) {
+            $flushParagraph();
+            if ($inList) {
+                $html[] = '</ul>';
+                $inList = false;
+            }
+            $level = strlen($m[1]);
+            $html[] = '<h' . $level . '>' . markdownInline($m[2]) . '</h' . $level . '>';
+            continue;
+        }
+
+        if (preg_match('/^[-*]\s+(.+)$/', $trimmed, $m)) {
+            $flushParagraph();
+            if (!$inList) {
+                $html[] = '<ul>';
+                $inList = true;
+            }
+            $html[] = '<li>' . markdownInline($m[1]) . '</li>';
+            continue;
+        }
+
+        if ($inList) {
+            $html[] = '</ul>';
+            $inList = false;
+        }
+        $paragraph[] = $trimmed;
+    }
+
+    $flushParagraph();
+    if ($inList) {
+        $html[] = '</ul>';
+    }
+
+    return implode("\n", $html);
+}
+
+function loadRepoDescription(array $repo, array $config): string
+{
+    $owner = (string) ($repo['owner']['login'] ?? '');
+    $name = (string) ($repo['name'] ?? '');
+    $branch = (string) ($repo['default_branch'] ?? 'main');
+    if ($owner === '' || $name === '') {
+        return '';
+    }
+
+    $cacheSeconds = max(60, (int) ($config['github_cache_seconds'] ?? 900));
+    $cacheDir = __DIR__ . '/cache/descriptions';
+    $cacheFile = $cacheDir . '/' . preg_replace('/[^a-z0-9._-]+/i', '-', $owner . '-' . $name) . '.md';
+    if (is_file($cacheFile) && filemtime($cacheFile) >= time() - $cacheSeconds) {
+        return trim((string) file_get_contents($cacheFile));
+    }
+
+    $token = trim((string) ($config['github_token'] ?? ''));
+    $url = 'https://api.github.com/repos/' . rawurlencode($owner) . '/' . rawurlencode($name)
+        . '/contents/description.md?ref=' . rawurlencode($branch);
+
+    try {
+        $file = githubRequest($url, $token);
+        if (($file['encoding'] ?? '') !== 'base64' || !isset($file['content'])) {
+            return '';
+        }
+        $decoded = base64_decode(str_replace(["\r", "\n"], '', (string) $file['content']), true);
+        if ($decoded === false) {
+            return '';
+        }
+        if (!is_dir($cacheDir)) {
+            mkdir($cacheDir, 0775, true);
+        }
+        file_put_contents($cacheFile, $decoded, LOCK_EX);
+        return trim($decoded);
+    } catch (Throwable $error) {
+        return is_file($cacheFile) ? trim((string) file_get_contents($cacheFile)) : '';
+    }
+}
+
 function loadGithubRepos(array $config): array
 {
     $username = (string) ($config['github_username'] ?? '');
@@ -94,12 +209,14 @@ function loadGithubRepos(array $config): array
     }
 }
 
-function normalizeRepo(array $repo): array
+function normalizeRepo(array $repo, array $config): array
 {
+    $markdown = loadRepoDescription($repo, $config);
     return [
         'name' => (string) ($repo['name'] ?? 'Unnamed repository'),
         'link' => (string) ($repo['html_url'] ?? '#'),
-        'description' => trim((string) ($repo['description'] ?? '')) ?: 'No description provided.',
+        'description' => $markdown !== '' ? $markdown : (trim((string) ($repo['description'] ?? '')) ?: 'No description provided.'),
+        'description_html' => $markdown !== '' ? markdownToHtml($markdown) : '<p>' . h(trim((string) ($repo['description'] ?? '')) ?: 'No description provided.') . '</p>',
         'language' => trim((string) ($repo['language'] ?? '')),
         'stars' => (int) ($repo['stargazers_count'] ?? 0),
         'updated' => isset($repo['updated_at']) ? date('n/j/Y', strtotime((string) $repo['updated_at'])) : '',
@@ -118,6 +235,7 @@ foreach (($config['custom_projects'] ?? []) as $project) {
         'name' => (string) ($project['name'] ?? 'Unnamed project'),
         'link' => (string) ($project['link'] ?? '#'),
         'description' => (string) ($project['description'] ?? 'No description provided.'),
+        'description_html' => markdownToHtml((string) ($project['description'] ?? 'No description provided.')),
         'language' => '',
         'stars' => 0,
         'updated' => '',
@@ -129,7 +247,7 @@ foreach (($config['custom_projects'] ?? []) as $project) {
 
 foreach (loadGithubRepos($config) as $repo) {
     if (is_array($repo) && !($repo['fork'] ?? false)) {
-        $projects[] = normalizeRepo($repo);
+        $projects[] = normalizeRepo($repo, $config);
     }
 }
 
@@ -171,7 +289,7 @@ $showArchived = (bool) ($config['show_archived'] ?? true);
         <?php foreach ($activeProjects as $project): ?>
           <div class="repo-card">
             <h3><a href="<?= h($project['link']) ?>" target="_blank" rel="noopener noreferrer"><?= h($project['name']) ?></a></h3>
-            <p><?= nl2br(h($project['description'])) ?></p>
+            <div class="repo-description"><?= $project['description_html'] ?></div>
             <div class="repo-meta">
               <?php if ($project['custom']): ?><span class="badge">Custom Project (Non-GitHub)</span><?php endif; ?>
               <?php if ($project['private']): ?><span class="badge">Private Repository</span><?php endif; ?>
@@ -197,7 +315,7 @@ $showArchived = (bool) ($config['show_archived'] ?? true);
           <?php foreach ($archivedProjects as $project): ?>
             <div class="repo-card">
               <h3><a href="<?= h($project['link']) ?>" target="_blank" rel="noopener noreferrer"><?= h($project['name']) ?></a></h3>
-              <p><?= nl2br(h($project['description'])) ?></p>
+              <div class="repo-description"><?= $project['description_html'] ?></div>
               <div class="repo-meta">
                 <?php if ($project['custom']): ?><span class="badge">Custom Project (Non-GitHub)</span><?php endif; ?>
                 <?php if ($project['private']): ?><span class="badge">Private Repository</span><?php endif; ?>
