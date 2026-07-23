@@ -1,1 +1,1 @@
-This sites repo and hosting with GitHub Pages.
+This sites repo.
