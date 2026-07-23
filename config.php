@@ -29,5 +29,11 @@ return [
             'description' => 'Mobile-friendly step-by-step technology guides.',
             'archived' => false,
         ],
+        [
+            'name' => 'S. R. Chilton',
+            'link' => 'https://srchilton.com',
+            'description' => 'Author page I built for my wife.',
+            'archived' => false,
+        ],
     ],
 ];
